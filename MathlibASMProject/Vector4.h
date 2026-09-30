@@ -26,7 +26,7 @@ inline Vector4 Store(__m128 val) {
 }
 
 inline Vector4 Add(Vector4& a, Vector4& b) {
-	const __m128 va = Load(a);
+	const __m128 va = Load(a);	
 	const __m128 vb = Load(b);
 
 	const __m128 result = _mm_add_ps(va, vb);
