@@ -12,13 +12,20 @@ using namespace std;
 
 namespace math {
 
-    template<typename T>
-    class Vector3 {
-    public:
-        T x{}, y{}, z{};
 
-        Vector3() = default;
-        Vector3(T x, T y, T z) : x(x), y(y), z(z) {}
+    class Vector2;
+
+    template<typename T>
+    class alignas(16) Vector3 {
+    public:
+        union {
+            __m128 reg;
+            struct { float x, y, z; };
+        };
+
+        Vector3() : reg(_mm_setzero_ps()) {}
+        Vector3(float x, float y, float z) : reg(_mm_setr_ps(x, y, z, 0.0f)) {}
+        Vector3(__m128 m) : reg(m) {}
 
         /*Vector2<T> toVector2() const {
             return Vector2<T>(x, y);

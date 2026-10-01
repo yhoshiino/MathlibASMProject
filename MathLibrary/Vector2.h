@@ -4,7 +4,7 @@
 #include <string>
 #include <algorithm>
 #include <limits>
-#include <smmintrin.h> // SSE4.1 (pour _mm_dp_ps)
+#include <emmintrin.h> // SSE4.1 (pour _mm_dp_ps)
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
@@ -29,7 +29,7 @@ namespace math {
 
         // --- Conversion vers Vector3 ---
         // Définition séparée si Vector3 est déclaré plus bas
-        inline Vector3 toVector3(float z = 0.0f) const;
+       /* inline Vector3 toVector3(float z = 0.0f) const;*/
 
         // --- Constantes / Factory ---
         static Vector2 zero() { return Vector2(_mm_setzero_ps()); }
