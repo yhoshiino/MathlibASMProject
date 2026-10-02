@@ -179,12 +179,12 @@ namespace Vector2Tests
 
 			// Clampmagnitude
 			Vector2 longVec(10.0f, 0.0f);
-			Vector2 clamped = v.ClampMagnitude(5.0f);
+			Vector2 clamped = v.ClampMagnitude(longVec, 5.0f);
 			Assert::AreEqual(5.0f, clamped.magnitude(), 0.0001f);
 			Assert::IsTrue(clamped == Vector2(5.0f, 0.0f));
 
 			Vector2 shortVec(2.0f, 0.0f);
-			Assert::IsTrue(v.ClampMagnitude(5.0f) == shortVec);
+			Assert::IsTrue(v.ClampMagnitude(shortVec, 5.0f) == shortVec);
 		}
 
 		// --- 9. MUTATEURS ET CHAINES DE CARACTÈRES ---
@@ -192,7 +192,7 @@ namespace Vector2Tests
 		{
 			Vector2 v(1.0f, 2.0f);
 
-			/*v.SetVector2(10.0f, 20.0f);*/
+			v.SetVector2(10.0f, 20.0f);
 			Assert::AreEqual(10.0f, v.x);
 			Assert::AreEqual(20.0f, v.y);
 

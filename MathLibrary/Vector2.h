@@ -147,14 +147,15 @@ namespace math {
             return _mm_mul_ps(reg, other.reg);
         }
 
-        Vector2 ClampMagnitude(float max) const {
-            float sqrMag = sqrMagnitude();
+        static Vector2 ClampMagnitude(const Vector2& v, float max) {
+            float sqrMag = v.x * v.x + v.y * v.y;
             if (sqrMag > max * max) {
-                float scale = max / std::sqrt(sqrMag);
-                return *this * scale;
+                float mag = max / std::sqrt(sqrMag);
+                return Vector2{ v.x* mag, v.y* mag };
             }
-            return *this;
+            return v;
         }
+
 
         // --- Accès et Comparaisons ---
         float operator[](int index) const {
@@ -176,5 +177,12 @@ namespace math {
         void print() const {
             std::cout << "(" << x << ", " << y << ")\n";
         }
+
+        void SetVector2(float newX, float newY) { // <-- pose problème si Vector2 est instancié avec un autre type T
+            x = newX;
+            y = newY;
+        }
     };
 }
+
+
