@@ -3,133 +3,171 @@
 #include <iostream>
 #include <string>
 #include <algorithm>
+#include <limits>
+#include <array>
+#include <stdexcept>
+#include <smmintrin.h> // SSE4.1 (_mm_dp_ps)
 
 #ifndef M_PI
-#define M_PI 3.14159265358979323846
+#define M_PI 3.14159265358979323846f
 #endif
-
-using namespace std;
 
 namespace math {
 
+    // Helper clamp pour compatibilité C++14 / C++11
+    template <typename T>
+    inline T clamp(T val, T minVal, T maxVal) {
+        return std::max(minVal, std::min(val, maxVal));
+    }
 
+    // Forward declaration
     class Vector2;
 
-    template<typename T>
     class alignas(16) Vector3 {
     public:
         union {
             __m128 reg;
-            struct { float x, y, z; };
+            struct { float x, y, z, w; }; // w assure l'alignement de 16 octets du registre
         };
 
+        // --- Constructeurs ---
         Vector3() : reg(_mm_setzero_ps()) {}
         Vector3(float x, float y, float z) : reg(_mm_setr_ps(x, y, z, 0.0f)) {}
         Vector3(__m128 m) : reg(m) {}
 
-        /*Vector2<T> toVector2() const {
-            return Vector2<T>(x, y);
-        }*/
+        // --- Factory / Constantes ---
+        static Vector3 up() { return Vector3(0.0f, 1.0f, 0.0f); }
+        static Vector3 down() { return Vector3(0.0f, -1.0f, 0.0f); }
+        static Vector3 left() { return Vector3(-1.0f, 0.0f, 0.0f); }
+        static Vector3 right() { return Vector3(1.0f, 0.0f, 0.0f); }
+        static Vector3 forward() { return Vector3(0.0f, 0.0f, 1.0f); }
+        static Vector3 back() { return Vector3(0.0f, 0.0f, -1.0f); }
+        static Vector3 one() { return Vector3(1.0f, 1.0f, 1.0f); }
+        static Vector3 zero() { return Vector3(_mm_setzero_ps()); }
+        static Vector3 negativeInfinity() { return Vector3(-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity()); }
+        static Vector3 positiveInfinity() { return Vector3(std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()); }
 
-        static Vector3 up() { return Vector3(0, 1, 0); }
-        static Vector3 down() { return Vector3(0, -1, 0); }
-        static Vector3 left() { return Vector3(-1, 0, 0); }
-        static Vector3 right() { return Vector3(1, 0, 0); }
-        static Vector3 forward() { return Vector3(0, 0, 1); }
-        static Vector3 back() { return Vector3(0, 0, -1); }
-        static Vector3 one() { return Vector3(1, 1, 1); }
-        static Vector3 zero() { return Vector3(0, 0, 0); }
-        static Vector3 negativeInfinity() { return Vector3(-INFINITY, -INFINITY, -INFINITY); }
-        static Vector3 positiveInfinity() { return Vector3(INFINITY, INFINITY, INFINITY); }
+        // --- Opérateurs SIMD de base ---
+        Vector3 operator+(const Vector3& o) const { return _mm_add_ps(reg, o.reg); }
+        Vector3 operator-(const Vector3& o) const { return _mm_sub_ps(reg, o.reg); }
+        Vector3 operator*(float scalar)     const { return _mm_mul_ps(reg, _mm_set1_ps(scalar)); }
+        Vector3 operator/(float scalar)     const { return _mm_div_ps(reg, _mm_set1_ps(scalar)); }
 
-        static T distance(const Vector3& a, const Vector3& b) {
-            T dx = a.x - b.x;
-            T dy = a.y - b.y;
-            T dz = a.z - b.z;
-            return sqrt(dx * dx + dy * dy + dz * dz);
+        Vector3& operator+=(const Vector3& o) { reg = _mm_add_ps(reg, o.reg); return *this; }
+        Vector3& operator-=(const Vector3& o) { reg = _mm_sub_ps(reg, o.reg); return *this; }
+        Vector3& operator*=(float scalar) { reg = _mm_mul_ps(reg, _mm_set1_ps(scalar)); return *this; }
+        Vector3& operator/=(float scalar) { reg = _mm_div_ps(reg, _mm_set1_ps(scalar)); return *this; }
+
+        // --- Produit scalaire, vectoriel & Magnitudes ---
+        float dot(const Vector3& o) const {
+            return _mm_cvtss_f32(_mm_dp_ps(reg, o.reg, 0x71));
         }
 
-        static Vector3<T> Lerp(const Vector3& a, const Vector3& b, float t) {
-            if (t < 0) t = 0;
-            if (t > 1) t = 1;
-            return a + (b - a) * t;
+        Vector3 cross(const Vector3& o) const {
+            __m128 a_yzx = _mm_shuffle_ps(reg, reg, _MM_SHUFFLE(3, 0, 2, 1));
+            __m128 b_yzx = _mm_shuffle_ps(o.reg, o.reg, _MM_SHUFFLE(3, 0, 2, 1));
+            __m128 a_zxy = _mm_shuffle_ps(reg, reg, _MM_SHUFFLE(3, 1, 0, 2));
+            __m128 b_zxy = _mm_shuffle_ps(o.reg, o.reg, _MM_SHUFFLE(3, 1, 0, 2));
+
+            return _mm_sub_ps(_mm_mul_ps(a_yzx, b_zxy), _mm_mul_ps(a_zxy, b_yzx));
         }
 
-        static Vector3<T> LerpUnclamped(const Vector3& a, const Vector3& b, float t) {
-            return a + (b - a) * t;
+        float sqrMagnitude() const {
+            return dot(*this);
         }
 
-        static Vector3<T> Max(const Vector3& a, const Vector3& b) {
-            return Vector3(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
-        }
-
-        static Vector3<T> Min(const Vector3& a, const Vector3& b) {
-            return Vector3(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z));
-        }
-
-        static Vector3<T> MoveTowards(const Vector3& current, const Vector3& target, float maxDelta) {
-            Vector3<T> delta = target - current;
-            float sqrDist = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
-            if (sqrDist <= maxDelta * maxDelta) return target;
-            float dist = sqrt(sqrDist);
-            return current + delta * (maxDelta / dist);
-        }
-
-        Vector3<T> Reflect(const Vector3& normal) const {
-            return *this - normal * (2 * this->dot(normal));
-        }
-
-        Vector3<T> Scale(const Vector3& other) const {
-            return Vector3(x * other.x, y * other.y, z * other.z);
-        }
-
-        Vector3<T> ClampMagnitude(const Vector3<T>& v, T max) const {
-            T sqrMag = v.x * v.x + v.y * v.y + v.z * v.z;
-            if (sqrMag > max * max) {
-                T mag = max / sqrt(sqrMag);
-                return Vector3<T>{v.x* mag, v.y* mag, v.z* mag};
-            }
-            return v;
-        }
-
-        Vector3 operator+(const Vector3& o) const { return Vector3{ x + o.x, y + o.y, z + o.z }; }
-        Vector3 operator-(const Vector3& o) const { return Vector3{ x - o.x, y - o.y, z - o.z }; }
-        Vector3 operator*(T scalar) const { return Vector3{ x * scalar, y * scalar, z * scalar }; }
-        Vector3 operator/(T divide) const { return Vector3{ x / divide, y / divide, z / divide }; }
-
-        T dot(const Vector3& o) const { return x * o.x + y * o.y + z * o.z; }
-        T magnitude() const { return sqrt(x * x + y * y + z * z); }
-        T sqrMagnitude() const { return x * x + y * y + z * z; }
-
-        T operator[](int index) const {
-            if (index == 0) return x;
-            else if (index == 1) return y;
-            else if (index == 2) return z;
-            else throw std::out_of_range("Index out of range");
+        float magnitude() const {
+            return _mm_cvtss_f32(_mm_sqrt_ss(_mm_dp_ps(reg, reg, 0x71)));
         }
 
         Vector3 normalized() const {
-            T mag = magnitude();
-            return mag ? Vector3{ x / mag, y / mag, z / mag } : Vector3{ 0,0,0 };
+            __m128 dot_reg = _mm_dp_ps(reg, reg, 0x77);
+            if (_mm_cvtss_f32(dot_reg) <= 0.00001f) return zero();
+            return _mm_mul_ps(reg, _mm_rsqrt_ps(dot_reg));
         }
 
-        bool operator==(const Vector3& o) const { return x == o.x && y == o.y && z == o.z; }
+        // --- Méthodes Statiques Géométriques ---
+        static float distance(const Vector3& a, const Vector3& b) {
+            __m128 diff = _mm_sub_ps(a.reg, b.reg);
+            __m128 dot = _mm_dp_ps(diff, diff, 0x71);
+            return _mm_cvtss_f32(_mm_sqrt_ss(dot));
+        }
+
+        static Vector3 Lerp(const Vector3& a, const Vector3& b, float t) {
+            t = math::clamp(t, 0.0f, 1.0f);
+            return LerpUnclamped(a, b, t);
+        }
+
+        static Vector3 LerpUnclamped(const Vector3& a, const Vector3& b, float t) {
+            __m128 vt = _mm_set1_ps(t);
+            return _mm_add_ps(a.reg, _mm_mul_ps(_mm_sub_ps(b.reg, a.reg), vt));
+        }
+
+        static Vector3 Max(const Vector3& a, const Vector3& b) {
+            return _mm_max_ps(a.reg, b.reg);
+        }
+
+        static Vector3 Min(const Vector3& a, const Vector3& b) {
+            return _mm_min_ps(a.reg, b.reg);
+        }
+
+        static Vector3 MoveTowards(const Vector3& current, const Vector3& target, float maxDelta) {
+            Vector3 delta = target - current;
+            float sqrDist = delta.sqrMagnitude();
+            if (sqrDist <= maxDelta * maxDelta || sqrDist == 0.0f) return target;
+
+            float dist = std::sqrt(sqrDist);
+            return current + delta * (maxDelta / dist);
+        }
+
+        // --- Transformées & Utilitaires ---
+        Vector3 Reflect(const Vector3& normal) const {
+            return *this - normal * (2.0f * this->dot(normal));
+        }
+
+        Vector3 Scale(const Vector3& other) const {
+            return _mm_mul_ps(reg, other.reg);
+        }
+
+        Vector3 ClampMagnitude(float maxVal) const {
+            float sqrMag = sqrMagnitude();
+            if (sqrMag > maxVal * maxVal) {
+                float scale = maxVal / std::sqrt(sqrMag);
+                return *this * scale;
+            }
+            return *this;
+        }
+
+        void SetVector3(float newX, float newY, float newZ) {
+            reg = _mm_setr_ps(newX, newY, newZ, 0.0f);
+        }
+
+        // --- Accès et Comparaisons ---
+        float operator[](int index) const {
+            if (index == 0) return x;
+            if (index == 1) return y;
+            if (index == 2) return z;
+            throw std::out_of_range("Index out of range");
+        }
+
+        bool operator==(const Vector3& o) const {
+            __m128 cmp = _mm_cmpeq_ps(reg, o.reg);
+            return (_mm_movemask_ps(cmp) & 0x7) == 0x7; // Vérifie X, Y, Z
+        }
+
+        bool operator!=(const Vector3& o) const {
+            return !(*this == o);
+        }
 
         std::string toString() const {
             return "(" + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z) + ")";
         }
 
-        void SetVector3(float newX, float newY, float newZ) {
-            x = newX;
-            y = newY;
-            z = newZ;
-        }
-
         void print() const {
-            cout << "(" << x << ", " << y << ", " << z << ")\n";
+            std::cout << "(" << x << ", " << y << ", " << z << ")\n";
         }
 
-        std::array<T, 3> toArray() const {
+        std::array<float, 3> toArray() const {
             return { x, y, z };
         }
     };

@@ -3,34 +3,38 @@
 #include <cmath>
 #include <stdexcept>
 #include <string>
-#include "../MathLibrary/Vector2.h" // Assure-toi que le chemin vers Vector2.h est correct dans les propriétés de ton projet[cite: 1]
+#include <array>
+#include "../MathLibrary/Vector3.h" // Vérifie le chemin vers Vector3.h
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace math;
 
-namespace Vector2Tests
+namespace Vector3Tests
 {
-	TEST_CLASS(Vector2Tests)
+	TEST_CLASS(Vector3Tests)
 	{
 	public:
 
 		// --- 1. CONSTRUCTEURS & ACCÈS PAR INDEX ---
 		TEST_METHOD(ConstructorsAndAccess)
 		{
-			Vector2 defaultVec;
+			Vector3 defaultVec;
 			Assert::AreEqual(0.0f, defaultVec.x);
 			Assert::AreEqual(0.0f, defaultVec.y);
+			Assert::AreEqual(0.0f, defaultVec.z);
 
-			Vector2 paramVec(3.0f, 4.0f);
+			Vector3 paramVec(3.0f, 4.0f, 5.0f);
 			Assert::AreEqual(3.0f, paramVec.x);
 			Assert::AreEqual(4.0f, paramVec.y);
+			Assert::AreEqual(5.0f, paramVec.z);
 
 			// Operator[]
 			Assert::AreEqual(3.0f, paramVec[0]);
 			Assert::AreEqual(4.0f, paramVec[1]);
+			Assert::AreEqual(5.0f, paramVec[2]);
 
 			// Exceptions
-			auto funcOutUpper = [&]() { paramVec[2]; };
+			auto funcOutUpper = [&]() { paramVec[3]; };
 			Assert::ExpectException<std::out_of_range>(funcOutUpper);
 
 			auto funcOutLower = [&]() { paramVec[-1]; };
@@ -40,163 +44,157 @@ namespace Vector2Tests
 		// --- 2. VECTEURS STATIQUES PRÉDÉFINIS ---
 		TEST_METHOD(StaticProperties)
 		{
-			Assert::IsTrue(Vector2::up() == Vector2(0.0f, 1.0f));
-			Assert::IsTrue(Vector2::down() == Vector2(0.0f, -1.0f));
-			Assert::IsTrue(Vector2::left() == Vector2(-1.0f, 0.0f));
-			Assert::IsTrue(Vector2::right() == Vector2(1.0f, 0.0f));
-			Assert::IsTrue(Vector2::one() == Vector2(1.0f, 1.0f));
+			Assert::IsTrue(Vector3::up() == Vector3(0.0f, 1.0f, 0.0f));
+			Assert::IsTrue(Vector3::down() == Vector3(0.0f, -1.0f, 0.0f));
+			Assert::IsTrue(Vector3::left() == Vector3(-1.0f, 0.0f, 0.0f));
+			Assert::IsTrue(Vector3::right() == Vector3(1.0f, 0.0f, 0.0f));
+			Assert::IsTrue(Vector3::forward() == Vector3(0.0f, 0.0f, 1.0f));
+			Assert::IsTrue(Vector3::back() == Vector3(0.0f, 0.0f, -1.0f));
+			Assert::IsTrue(Vector3::one() == Vector3(1.0f, 1.0f, 1.0f));
+			Assert::IsTrue(Vector3::zero() == Vector3(0.0f, 0.0f, 0.0f));
 
-			Vector2 negInf = Vector2::negativeInfinity();
+			Vector3 negInf = Vector3::negativeInfinity();
 			Assert::IsTrue(std::isinf(negInf.x) && negInf.x < 0);
 			Assert::IsTrue(std::isinf(negInf.y) && negInf.y < 0);
+			Assert::IsTrue(std::isinf(negInf.z) && negInf.z < 0);
 
-			Vector2 posInf = Vector2::positiveInfinity();
+			Vector3 posInf = Vector3::positiveInfinity();
 			Assert::IsTrue(std::isinf(posInf.x) && posInf.x > 0);
 			Assert::IsTrue(std::isinf(posInf.y) && posInf.y > 0);
+			Assert::IsTrue(std::isinf(posInf.z) && posInf.z > 0);
 		}
 
 		// --- 3. OPÉRATEURS ARITHMÉTIQUES ET D'AFFECTATION ---
 		TEST_METHOD(ArithmeticOperators)
 		{
-			Vector2 a(2.0f, 3.0f);
-			Vector2 b(4.0f, 1.0f);
+			Vector3 a(2.0f, 3.0f, 4.0f);
+			Vector3 b(4.0f, 1.0f, 2.0f);
 
 			// Opérateurs binaires
-			Assert::IsTrue((a + b) == Vector2(6.0f, 4.0f));
-			Assert::IsTrue((a - b) == Vector2(-2.0f, 2.0f));
-			Assert::IsTrue((a * 2.0f) == Vector2(4.0f, 6.0f));
-			Assert::IsTrue((a / 2.0f) == Vector2(1.0f, 1.5f));
+			Assert::IsTrue((a + b) == Vector3(6.0f, 4.0f, 6.0f));
+			Assert::IsTrue((a - b) == Vector3(-2.0f, 2.0f, 2.0f));
+			Assert::IsTrue((a * 2.0f) == Vector3(4.0f, 6.0f, 8.0f));
+			Assert::IsTrue((a / 2.0f) == Vector3(1.0f, 1.5f, 2.0f));
+
+			// Comparaisons
+			Assert::IsTrue(a == Vector3(2.0f, 3.0f, 4.0f));
+			Assert::IsTrue(a != b);
 
 			// Opérateurs d'affectation
-			Vector2 v(1.0f, 2.0f);
+			Vector3 v(1.0f, 2.0f, 3.0f);
 			v += b;
-			Assert::IsTrue(v == Vector2(5.0f, 3.0f));
+			Assert::IsTrue(v == Vector3(5.0f, 3.0f, 5.0f));
 			v -= a;
-			Assert::IsTrue(v == Vector2(3.0f, 0.0f));
-			v *= 3.0f;
-			Assert::IsTrue(v == Vector2(9.0f, 0.0f));
-			v /= 3.0f;
-			Assert::IsTrue(v == Vector2(3.0f, 0.0f));
+			Assert::IsTrue(v == Vector3(3.0f, 0.0f, 1.0f));
+			v *= 2.0f;
+			Assert::IsTrue(v == Vector3(6.0f, 0.0f, 2.0f));
+			v /= 2.0f;
+			Assert::IsTrue(v == Vector3(3.0f, 0.0f, 1.0f));
 		}
 
-		// --- 4. PRODUIT SCALAIRE, MAGNITUDE ET NORMALISATION ---
-		TEST_METHOD(MagnitudeAndDot)
+		// --- 4. PRODUIT SCALAIRE, PRODUIT VECTORIEL & MAGNITUDES ---
+		TEST_METHOD(MagnitudeDotAndCross)
 		{
-			Vector2 v(3.0f, 4.0f);
+			Vector3 v(1.0f, 2.0f, 2.0f);
 
-			Assert::AreEqual(25.0f, v.sqrMagnitude(), 0.0001f);
-			Assert::AreEqual(5.0f, v.magnitude(), 0.0001f);
-			Assert::AreEqual(2.0f, v.dot(Vector2(2.0f, -1.0f)), 0.0001f); // 3*2 + 4*(-1) = 2[cite: 1]
+			Assert::AreEqual(9.0f, v.sqrMagnitude(), 0.0001f);
+			Assert::AreEqual(3.0f, v.magnitude(), 0.0001f);
+
+			// Produit scalaire (Dot) : 1*4 + 2*(-5) + 2*6 = 4 - 10 + 12 = 6
+			Assert::AreEqual(6.0f, v.dot(Vector3(4.0f, -5.0f, 6.0f)), 0.0001f);
+
+			// Produit vectoriel (Cross) : Right (1,0,0) x Up (0,1,0) = Forward (0,0,1)
+			Vector3 crossResult = Vector3::right().cross(Vector3::up());
+			Assert::IsTrue(crossResult == Vector3::forward());
 
 			// Normalisation
-			Vector2 norm = v.normalized();
-			Assert::AreEqual(0.6f, norm.x, 0.0001f);
-			Assert::AreEqual(0.8f, norm.y, 0.0001f);
+			Vector3 vNorm(0.0f, 3.0f, 4.0f);
+			Vector3 norm = vNorm.normalized();
+			Assert::AreEqual(0.0f, norm.x, 0.0001f);
+			Assert::AreEqual(0.6f, norm.y, 0.0001f);
+			Assert::AreEqual(0.8f, norm.z, 0.0001f);
 			Assert::AreEqual(1.0f, norm.magnitude(), 0.0001f);
 
 			// Normalisation vecteur nul
-			Vector2 zeroVec(0.0f, 0.0f);
-			Assert::IsTrue(zeroVec.normalized() == Vector2(0.0f, 0.0f));
+			Vector3 zeroVec(0.0f, 0.0f, 0.0f);
+			Assert::IsTrue(zeroVec.normalized() == Vector3::zero());
 		}
 
-		// --- 5. ANGLES ET DISTANCE ---
-		TEST_METHOD(DistanceAndAngle)
+		// --- 5. DISTANCE ET INTERPOLATION ---
+		TEST_METHOD(DistanceAndInterpolation)
 		{
-			Vector2 a(0.0f, 0.0f);
-			Vector2 b(3.0f, 4.0f);
+			Vector3 a(0.0f, 0.0f, 0.0f);
+			Vector3 b(0.0f, 3.0f, 4.0f);
 
 			// Distance
-			Assert::AreEqual(5.0f, Vector2::distance(a, b), 0.0001f);
-
-			// Angle (0 à 180)
-			Vector2 vRight = Vector2::right();
-			Vector2 vUp = Vector2::up();
-			Assert::AreEqual(90.0f, Vector2::angle(vRight, vUp), 0.0001f);
-			Assert::AreEqual(180.0f, Vector2::angle(vRight, Vector2::left()), 0.0001f);
-			Assert::AreEqual(0.0f, Vector2::angle(a, b), 0.0001f); // Cas zéro[cite: 1]
-
-			// SignedAngle (-180 à 180)
-			Assert::AreEqual(90.0f, Vector2::SignedAngle(vRight, vUp), 0.0001f);
-			Assert::AreEqual(-90.0f, Vector2::SignedAngle(vUp, vRight), 0.0001f);
-		}
-
-		// --- 6. INTERPOLATION ET LIMITES ---
-		TEST_METHOD(InterpolationAndLimits)
-		{
-			Vector2 start(0.0f, 0.0f);
-			Vector2 end(10.0f, 20.0f);
+			Assert::AreEqual(5.0f, Vector3::distance(a, b), 0.0001f);
 
 			// Lerp (Clamped)
-			Assert::IsTrue(Vector2::Lerp(start, end, 0.5f) == Vector2(5.0f, 10.0f));
-			Assert::IsTrue(Vector2::Lerp(start, end, -0.5f) == start);
-			Assert::IsTrue(Vector2::Lerp(start, end, 1.5f) == end);
+			Vector3 start(0.0f, 0.0f, 0.0f);
+			Vector3 end(10.0f, 20.0f, 30.0f);
+
+			Assert::IsTrue(Vector3::Lerp(start, end, 0.5f) == Vector3(5.0f, 10.0f, 15.0f));
+			Assert::IsTrue(Vector3::Lerp(start, end, -0.5f) == start);
+			Assert::IsTrue(Vector3::Lerp(start, end, 1.5f) == end);
 
 			// LerpUnclamped
-			Assert::IsTrue(Vector2::LerpUnclamped(start, end, 1.5f) == Vector2(15.0f, 30.0f));
+			Assert::IsTrue(Vector3::LerpUnclamped(start, end, 1.5f) == Vector3(15.0f, 30.0f, 45.0f));
 
 			// Min / Max
-			Vector2 v1(5.0f, 2.0f);
-			Vector2 v2(3.0f, 8.0f);
-			Assert::IsTrue(Vector2::Min(v1, v2) == Vector2(3.0f, 2.0f));
-			Assert::IsTrue(Vector2::Max(v1, v2) == Vector2(5.0f, 8.0f));
+			Vector3 v1(5.0f, 2.0f, 9.0f);
+			Vector3 v2(3.0f, 8.0f, 1.0f);
+			Assert::IsTrue(Vector3::Min(v1, v2) == Vector3(3.0f, 2.0f, 1.0f));
+			Assert::IsTrue(Vector3::Max(v1, v2) == Vector3(5.0f, 8.0f, 9.0f));
 		}
 
-		// --- 7. DÉPLACEMENT ET PHYSIQUE ---
-		TEST_METHOD(MovementAndPhysics)
+		// --- 6. DÉPLACEMENT ET TRANSFORMATIONS GÉOMÉTRIQUES ---
+		TEST_METHOD(MovementAndGeometry)
 		{
 			// MoveTowards
-			Vector2 current(0.0f, 0.0f);
-			Vector2 target(10.0f, 0.0f);
+			Vector3 current(0.0f, 0.0f, 0.0f);
+			Vector3 target(10.0f, 0.0f, 0.0f);
 
-			Vector2 step1 = Vector2::MoveTowards(current, target, 3.0f);
-			Assert::IsTrue(step1 == Vector2(3.0f, 0.0f));
+			Vector3 step1 = Vector3::MoveTowards(current, target, 3.0f);
+			Assert::IsTrue(step1 == Vector3(3.0f, 0.0f, 0.0f));
 
-			Vector2 step2 = Vector2::MoveTowards(current, target, 15.0f);
+			Vector3 step2 = Vector3::MoveTowards(current, target, 15.0f);
 			Assert::IsTrue(step2 == target);
 
-			// SmoothDamp
-			Vector2 vel(0.0f, 0.0f);
-			Vector2 nextPos = Vector2::SmoothDamp(current, target, vel, 0.1f, 0.02f);
-			Assert::IsTrue(nextPos.x > 0.0f && nextPos.x < target.x);
-			Assert::IsTrue(vel.x > 0.0f);
-		}
-
-		// --- 8. GÉOMÉTRIE ET TRANSFORMATIONS ---
-		TEST_METHOD(Geometry)
-		{
-			Vector2 v(3.0f, 4.0f);
-
-			// Perpendicular (-y, x)
-			Assert::IsTrue(v.Perpendicular() == Vector2(-4.0f, 3.0f));
-
 			// Scale
-			Assert::IsTrue(v.Scale(Vector2(2.0f, 0.5f)) == Vector2(6.0f, 2.0f));
+			Vector3 v(3.0f, 4.0f, 5.0f);
+			Assert::IsTrue(v.Scale(Vector3(2.0f, 0.5f, 3.0f)) == Vector3(6.0f, 2.0f, 15.0f));
 
 			// Reflect
-			Vector2 inRay(1.0f, -1.0f);
-			Vector2 normal(0.0f, 1.0f);
-			Assert::IsTrue(inRay.Reflect(normal) == Vector2(1.0f, 1.0f));
+			Vector3 inRay(1.0f, -1.0f, 0.0f);
+			Vector3 normal(0.0f, 1.0f, 0.0f);
+			Assert::IsTrue(inRay.Reflect(normal) == Vector3(1.0f, 1.0f, 0.0f));
 
-			// Clampmagnitude
-			Vector2 longVec(10.0f, 0.0f);
-			Vector2 clamped = v.ClampMagnitude(longVec, 5.0f);
+			// ClampMagnitude
+			Vector3 longVec(10.0f, 0.0f, 0.0f);
+			Vector3 clamped = longVec.ClampMagnitude(5.0f);
 			Assert::AreEqual(5.0f, clamped.magnitude(), 0.0001f);
-			Assert::IsTrue(clamped == Vector2(5.0f, 0.0f));
+			Assert::IsTrue(clamped == Vector3(5.0f, 0.0f, 0.0f));
 
-			Vector2 shortVec(2.0f, 0.0f);
-			Assert::IsTrue(v.ClampMagnitude(shortVec, 5.0f) == shortVec);
+			Vector3 shortVec(2.0f, 0.0f, 0.0f);
+			Assert::IsTrue(shortVec.ClampMagnitude(5.0f) == shortVec);
 		}
 
-		// --- 9. MUTATEURS ET CHAINES DE CARACTÈRES ---
-		TEST_METHOD(MutatorsAndString)
+		// --- 7. MUTATEURS, CONVERSIONS ET STRINGS ---
+		TEST_METHOD(MutatorsAndConversions)
 		{
-			Vector2 v(1.0f, 2.0f);
+			Vector3 v(1.0f, 2.0f, 3.0f);
 
-			v.SetVector2(10.0f, 20.0f);
+			v.SetVector3(10.0f, 20.0f, 30.0f);
 			Assert::AreEqual(10.0f, v.x);
 			Assert::AreEqual(20.0f, v.y);
+			Assert::AreEqual(30.0f, v.z);
 
-			Assert::AreEqual(std::string("(10.000000, 20.000000)"), v.toString());
+			Assert::AreEqual(std::string("(10.000000, 20.000000, 30.000000)"), v.toString());
+
+			std::array<float, 3> arr = v.toArray();
+			Assert::AreEqual(10.0f, arr[0]);
+			Assert::AreEqual(20.0f, arr[1]);
+			Assert::AreEqual(30.0f, arr[2]);
 		}
 	};
 }
