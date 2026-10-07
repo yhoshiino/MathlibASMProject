@@ -19,12 +19,14 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="nanobench.cpp" />
     <ClCompile Include="Quaternion.h" />
     <ClCompile Include="Vector2.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Matrice3x3.h" />
     <ClInclude Include="Matrice4x4.h" />
+    <ClInclude Include="Nanobench\nanobench.h" />
     <ClInclude Include="Vector3.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
