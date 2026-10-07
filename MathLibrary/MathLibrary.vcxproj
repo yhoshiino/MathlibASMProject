@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Matrix3x3SMID.h" />
     <ClCompile Include="Matrix4x4SMID.h" />
     <ClCompile Include="nanobench.cpp" />
     <ClCompile Include="Quaternion.h" />

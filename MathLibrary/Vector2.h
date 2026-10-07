@@ -1,4 +1,9 @@
 #pragma once
+#include <algorithm> 
+#include <cmath>      
+#include <iostream>  
+#include <stdexcept>  
+#include <string>     
 #ifndef M_PI
 
 #define M_PI 3.14159265358979323846
@@ -20,10 +25,8 @@ namespace math {
         Vector2() = default;
         Vector2(T x, T y) : x(x), y(y) {}
 
-        Vector3<T> toVector3(T z = 0) {
-            3
-                return Vector3<T>(x, y, z);
-
+        Vector3<T> toVector3(T z = 0) const {
+            return Vector3<T>(x, y, z);
         }
         static Vector2 up() {
 
