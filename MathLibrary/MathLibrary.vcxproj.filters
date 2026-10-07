@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Vector2.h">
+    <ClCompile Include="Vector2SMID.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClCompile>
     <ClCompile Include="Quaternion.h">
@@ -36,6 +36,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="Nanobench\nanobench.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector2.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>
