@@ -1,21 +1,19 @@
 #pragma once
-#include <immintrin.h>
-#include <cmath>
-#include <array>
+#include <emmintrin.h> // SSE2 uniquement
 #include <algorithm>
-#include <cassert>
+#include <array>
+#include <cmath>
 
-namespace math {
+namespace math::simd {
 
+    // Convention : stockage column-major (col[j] = colonne j, data[col*4 + row]),
+    // vecteurs colonnes (M * v), translation dans col[3], angles en radians, repère main droite.
+    // trs = T * Rz * Ry * Rx * S  (le scale est appliqué en premier).
+    // NB : union avec tableau de __m128 = pratique courante sous MSVC/GCC/Clang.
     struct alignas(16) Mat4x4f {
         union {
             __m128 col[4];     // Accès vectoriel SIMD par colonne
-            float data[16];    // Accès plat column-major (compatible OpenGL/DirectX)
-        };
-
-        // Structure représentant un Quaternion de rotation
-        struct Quaternion {
-            float x = 0.0f, y = 0.0f, z = 0.0f, w = 1.0f;
+            float data[16];    // Accès plat column-major
         };
 
         // --- Constructeurs ---
@@ -27,13 +25,8 @@ namespace math {
         }
 
         // --- Accès aux éléments (Column-Major) ---
-        float& at(int row, int colIdx) {
-            return data[colIdx * 4 + row];
-        }
-
-        const float& at(int row, int colIdx) const {
-            return data[colIdx * 4 + row];
-        }
+        float& at(int row, int colIdx) { return data[colIdx * 4 + row]; }
+        const float& at(int row, int colIdx) const { return data[colIdx * 4 + row]; }
 
         bool isIdentity() const {
             return at(0, 0) == 1.0f && at(0, 1) == 0.0f && at(0, 2) == 0.0f && at(0, 3) == 0.0f &&
@@ -105,6 +98,7 @@ namespace math {
         }
 
         // --- Multiplications de Vecteurs ---
+        // Produit M * v complet (utilise la lane w de v).
         __m128 multiply(__m128 v) const {
             __m128 x = _mm_shuffle_ps(v, v, _MM_SHUFFLE(0, 0, 0, 0));
             __m128 y = _mm_shuffle_ps(v, v, _MM_SHUFFLE(1, 1, 1, 1));
@@ -116,6 +110,20 @@ namespace math {
             r = _mm_add_ps(r, _mm_mul_ps(col[2], z));
             r = _mm_add_ps(r, _mm_mul_ps(col[3], w));
             return r;
+        }
+
+        // [AJOUT] Transformation d'un POINT : w = 1 implicite, pas de division perspective.
+        // La lane w de p est ignorée (un Vector3 a w = 0, la translation doit quand même s'appliquer).
+        // Ordre d'addition : ((c0*x + c1*y) + c2*z) + c3, identique à la formule scalaire.
+        __m128 transformPoint(__m128 p) const {
+            __m128 x = _mm_shuffle_ps(p, p, _MM_SHUFFLE(0, 0, 0, 0));
+            __m128 y = _mm_shuffle_ps(p, p, _MM_SHUFFLE(1, 1, 1, 1));
+            __m128 z = _mm_shuffle_ps(p, p, _MM_SHUFFLE(2, 2, 2, 2));
+
+            __m128 r = _mm_mul_ps(col[0], x);
+            r = _mm_add_ps(r, _mm_mul_ps(col[1], y));
+            r = _mm_add_ps(r, _mm_mul_ps(col[2], z));
+            return _mm_add_ps(r, col[3]);
         }
 
         std::array<float, 3> multiplyPoint3x4(const std::array<float, 3>& p) const {
@@ -307,47 +315,6 @@ namespace math {
             m.at(3, 0) = 0.0f; m.at(3, 1) = 0.0f; m.at(3, 2) = 0.0f; m.at(3, 3) = 1.0f;
             return m;
         }
-
-        // --- Conversion vers Quaternion ---
-        Quaternion rotation() const {
-            auto ls = lossyScale();
-            float m00 = at(0, 0) / ls[0], m01 = at(0, 1) / ls[1], m02 = at(0, 2) / ls[2];
-            float m10 = at(1, 0) / ls[0], m11 = at(1, 1) / ls[1], m12 = at(1, 2) / ls[2];
-            float m20 = at(2, 0) / ls[0], m21 = at(2, 1) / ls[1], m22 = at(2, 2) / ls[2];
-
-            float trace = m00 + m11 + m22;
-            Quaternion q;
-
-            if (trace > 0.0f) {
-                float s = 0.5f / std::sqrt(trace + 1.0f);
-                q.w = 0.25f / s;
-                q.x = (m21 - m12) * s;
-                q.y = (m02 - m20) * s;
-                q.z = (m10 - m01) * s;
-            }
-            else if (m00 > m11 && m00 > m22) {
-                float s = 2.0f * std::sqrt(1.0f + m00 - m11 - m22);
-                q.w = (m21 - m12) / s;
-                q.x = 0.25f * s;
-                q.y = (m01 + m10) / s;
-                q.z = (m02 + m20) / s;
-            }
-            else if (m11 > m22) {
-                float s = 2.0f * std::sqrt(1.0f + m11 - m00 - m22);
-                q.w = (m02 - m20) / s;
-                q.x = (m01 + m10) / s;
-                q.y = 0.25f * s;
-                q.z = (m12 + m21) / s;
-            }
-            else {
-                float s = 2.0f * std::sqrt(1.0f + m22 - m00 - m11);
-                q.w = (m10 - m01) / s;
-                q.x = (m02 + m20) / s;
-                q.y = (m12 + m21) / s;
-                q.z = 0.25f * s;
-            }
-            return q;
-        }
     };
 
-} // namespace math
+} // namespace math::simd

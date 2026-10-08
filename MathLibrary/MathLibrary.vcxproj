@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BatchOps.cpp" />
     <ClCompile Include="Matrix3x3SIMD.h" />
     <ClCompile Include="Matrix4x4SIMD.h" />
     <ClCompile Include="nanobench.cpp" />
@@ -26,11 +27,13 @@
     <ClCompile Include="Vector2SIMD.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BatchOps.h" />
     <ClInclude Include="Matrice3x3.h" />
     <ClInclude Include="Matrice4x4.h" />
     <ClInclude Include="Nanobench\nanobench.h" />
     <ClInclude Include="Vector2.h" />
     <ClInclude Include="Vector3.h" />
+    <ClInclude Include="Vector3SIMD.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

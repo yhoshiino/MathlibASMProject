@@ -1,11 +1,13 @@
 #pragma once
+#include <algorithm>
 #include <array>
 #include <cmath>
-#include <iostream>
-#include "Quaternion.h"
 
-namespace math {
+namespace math::scalar {
 
+    // Convention : stockage column-major data[col*4 + row], vecteurs colonnes (M * v),
+    // translation dans la colonne 3, angles en radians, repère main droite.
+    // trs = T * Rz * Ry * Rx * S  (le scale est appliqué en premier).
     template<typename T = float>
     class Mat4x4 {
     public:
@@ -20,17 +22,10 @@ namespace math {
             };
         }
 
-        T& at(int row, int col) {
-            return data[col * 4 + row];
-        }
+        T& at(int row, int col) { return data[col * 4 + row]; }
+        const T& at(int row, int col) const { return data[col * 4 + row]; }
 
-        const T& at(int row, int col) const {
-            return data[col * 4 + row];
-        }
-
-        static Mat4x4<T> identity() {
-            return Mat4x4<T>();
-        }
+        static Mat4x4<T> identity() { return Mat4x4<T>(); }
 
         static Mat4x4<T> zero() {
             Mat4x4<T> m;
@@ -113,6 +108,7 @@ namespace math {
             return result;
         }
 
+        // Point avec w = 1, sans division perspective (suppose une matrice affine).
         std::array<T, 3> multiplyPoint3x4(const std::array<T, 3>& vec) const {
             std::array<T, 3> result = { 0, 0, 0 };
             for (int row = 0; row < 3; ++row) {
@@ -124,6 +120,7 @@ namespace math {
             return result;
         }
 
+        // Direction (w = 0) : la translation est ignorée.
         std::array<T, 3> multiplyVector(const std::array<T, 3>& vec) const {
             std::array<T, 3> result = { 0, 0, 0 };
             for (int row = 0; row < 3; ++row) {
@@ -314,7 +311,7 @@ namespace math {
             T det = m[0] * invOut[0] + m[1] * invOut[4] + m[2] * invOut[8] + m[3] * invOut[12];
             if (det == 0) return zero();
 
-            T invDet = 1.0 / det;
+            T invDet = T(1) / det;
             for (int i = 0; i < 16; ++i) {
                 inv.data[i] = invOut[i] * invDet;
             }
@@ -322,15 +319,15 @@ namespace math {
         }
 
         std::array<T, 3> lossyScale() const {
-            std::array<T, 3> scale;
+            std::array<T, 3> s;
             for (int i = 0; i < 3; ++i) {
-                scale[i] = std::sqrt(
+                s[i] = std::sqrt(
                     at(0, i) * at(0, i) +
                     at(1, i) * at(1, i) +
                     at(2, i) * at(2, i)
                 );
             }
-            return scale;
+            return s;
         }
 
         std::array<T, 3> getPosition() const {
@@ -338,43 +335,43 @@ namespace math {
         }
 
         void setTRS(T tx, T ty, T tz, T angleX, T angleY, T angleZ, T sx, T sy, T sz) {
-            *this = translate(tx, ty, tz) * rotationZ(angleZ) * rotationY(angleY) * rotationX(angleX) * scale(sx, sy, sz);
+            *this = trs(tx, ty, tz, angleX, angleY, angleZ, sx, sy, sz);
         }
 
         bool validTRS() const {
             return std::abs(determinant()) > static_cast<T>(1e-6);
         }
 
-        static Mat4x4<T> perspective(T fovY, T aspect, T near, T far) {
+        static Mat4x4<T> perspective(T fovY, T aspect, T zNear, T zFar) {
             T f = 1 / std::tan(fovY / 2);
             Mat4x4<T> m = zero();
             m.at(0, 0) = f / aspect;
             m.at(1, 1) = f;
-            m.at(2, 2) = (far + near) / (near - far);
-            m.at(2, 3) = (2 * far * near) / (near - far);
+            m.at(2, 2) = (zFar + zNear) / (zNear - zFar);
+            m.at(2, 3) = (2 * zFar * zNear) / (zNear - zFar);
             m.at(3, 2) = -1;
             return m;
         }
 
-        static Mat4x4<T> ortho(T left, T right, T bottom, T top, T near, T far) {
+        static Mat4x4<T> ortho(T left, T right, T bottom, T top, T zNear, T zFar) {
             Mat4x4<T> m = identity();
             m.at(0, 0) = 2 / (right - left);
             m.at(1, 1) = 2 / (top - bottom);
-            m.at(2, 2) = -2 / (far - near);
+            m.at(2, 2) = -2 / (zFar - zNear);
             m.at(0, 3) = -(right + left) / (right - left);
             m.at(1, 3) = -(top + bottom) / (top - bottom);
-            m.at(2, 3) = -(far + near) / (far - near);
+            m.at(2, 3) = -(zFar + zNear) / (zFar - zNear);
             return m;
         }
 
-        static Mat4x4<T> frustum(T left, T right, T bottom, T top, T near, T far) {
+        static Mat4x4<T> frustum(T left, T right, T bottom, T top, T zNear, T zFar) {
             Mat4x4<T> m = zero();
-            m.at(0, 0) = (2 * near) / (right - left);
-            m.at(1, 1) = (2 * near) / (top - bottom);
+            m.at(0, 0) = (2 * zNear) / (right - left);
+            m.at(1, 1) = (2 * zNear) / (top - bottom);
             m.at(0, 2) = (right + left) / (right - left);
             m.at(1, 2) = (top + bottom) / (top - bottom);
-            m.at(2, 2) = -(far + near) / (far - near);
-            m.at(2, 3) = -(2 * far * near) / (far - near);
+            m.at(2, 2) = -(zFar + zNear) / (zFar - zNear);
+            m.at(2, 3) = -(2 * zFar * zNear) / (zFar - zNear);
             m.at(3, 2) = -1;
             return m;
         }
@@ -409,41 +406,6 @@ namespace math {
             m = m * translate(-eye[0], -eye[1], -eye[2]);
             return m;
         }
-
-        Quaternion<T> rotation() const {
-            T trace = at(0, 0) + at(1, 1) + at(2, 2);
-            Quaternion<T> q;
-
-            if (trace > 0) {
-                T s = std::sqrt(trace + 1.0) * 2;
-                q.w = 0.25 * s;
-                q.x = (at(2, 1) - at(1, 2)) / s;
-                q.y = (at(0, 2) - at(2, 0)) / s;
-                q.z = (at(1, 0) - at(0, 1)) / s;
-            }
-            else if ((at(0, 0) > at(1, 1)) && (at(0, 0) > at(2, 2))) {
-                T s = std::sqrt(1.0 + at(0, 0) - at(1, 1) - at(2, 2)) * 2;
-                q.w = (at(2, 1) - at(1, 2)) / s;
-                q.x = 0.25 * s;
-                q.y = (at(0, 1) + at(1, 0)) / s;
-                q.z = (at(0, 2) + at(2, 0)) / s;
-            }
-            else if (at(1, 1) > at(2, 2)) {
-                T s = std::sqrt(1.0 + at(1, 1) - at(0, 0) - at(2, 2)) * 2;
-                q.w = (at(0, 2) - at(2, 0)) / s;
-                q.x = (at(0, 1) + at(1, 0)) / s;
-                q.y = 0.25 * s;
-                q.z = (at(1, 2) + at(2, 1)) / s;
-            }
-            else {
-                T s = std::sqrt(1.0 + at(2, 2) - at(0, 0) - at(1, 1)) * 2;
-                q.w = (at(1, 0) - at(0, 1)) / s;
-                q.x = (at(0, 2) + at(2, 0)) / s;
-                q.y = (at(1, 2) + at(2, 1)) / s;
-                q.z = 0.25 * s;
-            }
-
-            return q.normalized();
-        }
     };
-} // namespace math
+
+} // namespace math::scalar
