@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include "../MathLibrary/Nanobench/nanobench.h"
-#include "../MathLibrary/Vector2SMID.h"   // adapte le chemin vers ton header
+#include "../MathLibrary/Vector2SIMD.h"   // adapte le chemin vers ton header
 
 int main() {
     using ankerl::nanobench::doNotOptimizeAway;

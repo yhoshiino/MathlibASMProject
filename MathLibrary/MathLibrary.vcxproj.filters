@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Vector2SMID.h">
+    <ClCompile Include="Vector2SIMD.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClCompile>
     <ClCompile Include="Quaternion.h">
@@ -24,10 +24,10 @@
     <ClCompile Include="nanobench.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
-    <ClCompile Include="Matrix4x4SMID.h">
+    <ClCompile Include="Matrix4x4SIMD.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClCompile>
-    <ClCompile Include="Matrix3x3SMID.h">
+    <ClCompile Include="Matrix3x3SIMD.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClCompile>
   </ItemGroup>

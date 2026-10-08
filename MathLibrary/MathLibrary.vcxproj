@@ -19,11 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Matrix3x3SMID.h" />
-    <ClCompile Include="Matrix4x4SMID.h" />
+    <ClCompile Include="Matrix3x3SIMD.h" />
+    <ClCompile Include="Matrix4x4SIMD.h" />
     <ClCompile Include="nanobench.cpp" />
     <ClCompile Include="Quaternion.h" />
-    <ClCompile Include="Vector2SMID.h" />
+    <ClCompile Include="Vector2SIMD.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Matrice3x3.h" />
