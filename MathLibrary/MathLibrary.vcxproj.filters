@@ -57,4 +57,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="DotVec3.asm">
+      <Filter>Fichiers sources</Filter>
+    </MASM>
+  </ItemGroup>
 </Project>
