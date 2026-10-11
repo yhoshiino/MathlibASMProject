@@ -397,9 +397,53 @@ Chaque conversion coûte 0,28–0,29 ns/élément à n = 16, 0,49–0,51 à n = 
 
 ## 11. Profilage CPU
 
-> **À COMPLÉTER** : l'analyse d'au moins un traitement au profileur CPU est exigée par le cahier des charges.
->
-> Procédure suggérée : Release x64, arguments `normalize soa 1048576`, *Déboguer > Profileur de performances > Utilisation du processeur*. Dans la vue « Fonctions », trier par **temps CPU propre** et relever la part de `normalize_ref`, `aos_to_soa`, `soa_to_aos` et `normalize_soa_sse`, puis la vue ligne par ligne de `normalize_soa_sse`. Joindre les captures et les pourcentages, et les confronter aux hypothèses de la section 10.3 (poids des conversions face au calcul).
+## 11. Profilage CPU
+
+**Outil** : Profileur de performances de Visual Studio, outil « Utilisation de l'UC » (échantillonnage), Release x64, sans le débogueur. **Périmètre** : une exécution complète du benchmark (les trois traitements, toutes les versions, les trois tailles) : 22 019 ms de temps CPU au total.
+
+### 11.1 Fonctions les plus coûteuses (temps UC exclusif, c'est-à-dire sans les fonctions appelées)
+
+| Fonction | Temps UC exclusif (ms) | Part |
+|---|---|---|
+| `aos_to_soa` | 3 865 | **17,55 %** |
+| `normalize_ref_novec` | 2 201 | 10,00 % |
+| `soa_to_aos` | 2 143 | **9,73 %** |
+| `transform_ref_novec` | 1 863 | 8,46 % |
+| `dot_ref_novec` | 1 805 | 8,20 % |
+| `normalize_soa_sse` | 1 061 | 4,82 % |
+| `transform_soa_sse` | 1 019 | 4,63 % |
+| `dot_soa_sse` | 1 006 | 4,57 % |
+| nanobench (`Bench::runImpl<…>`) | 932 | 4,23 % |
+| `dot_batch_asm` | 922 | 4,19 % |
+| nanobench (`Bench::runImpl<…>`) | 872 | 3,96 % |
+| `dot_sse` | 770 | 3,50 % |
+
+(Capture : lignes triées par temps UC exclusif ; les lignes suivantes, moins coûteuses, ne sont pas reproduites.)
+
+### 11.2 Ce que le profil montre
+
+1. **Les conversions pèsent lourd** : `aos_to_soa` et `soa_to_aos` totalisent **27,3 %** du temps CPU de l'exécution, contre **14,0 %** pour les trois calculs SoA (`normalize_soa_sse`, `transform_soa_sse`, `dot_soa_sse`). Cela va dans le sens du résultat du benchmark : le coût des conversions (0,25 à 0,97 ns/élément chacune, §7) est du même ordre que celui du calcul SoA (0,21 à 0,83 ns/élément), ce qui explique que le SoA conversions comprises soit souvent une régression (§10.3).
+
+2. **Fusion de `*_ref` et `*_ref_novec` par l'éditeur de liens, confirmée** : le profil attribue le temps des références scalaires aux noms `dot_ref_novec`, `normalize_ref_novec` et `transform_ref_novec`. Parmi les lignes visibles, aucune ligne `dot_ref`, `normalize_ref` ou `transform_ref` n'apparaît. De plus, le temps de chaque fonction `_novec` correspond à la **somme des durées de deux lignes du benchmark** (la référence **et** la variante sans autovec) :
+
+| Traitement | Somme des durées nanobench des lignes ref + novec (s) | Temps UC exclusif du profil (s) |
+|---|---|---|
+| `dot` | 1,75 | 1,81 |
+| `normalize` | 2,13 | 2,20 |
+| `transform` | 1,87 | 1,86 |
+
+   Les deux lignes exécutent donc **le même code machine** (pliage COMDAT, `/OPT:ICF`), ce qui explique l'égalité de leurs temps aux petites et moyennes tailles (§7.6, §8). Les sommes du benchmark viennent de la deuxième exécution de mesures (§7.6), le profil d'une troisième exécution : l'écart de 0 à 3,5 % est cohérent. Un autre contrôle : `dot_sse` donne 0,77 s au profil contre 0,79 s pour la somme de ses trois lignes de benchmark.
+
+3. **Le profil valide les mesures du benchmark** : le temps CPU par fonction correspond à la durée cumulée de leurs lignes de mesure (contrôle ci-dessus), et aucun temps important n'est dépensé hors des noyaux de calcul, des conversions et du code de nanobench.
+
+4. **Surcoût du harnais** : les deux lignes nanobench (`Bench::runImpl<…>`) représentent 8,2 % du temps total. Elles contiennent probablement les lambdas de mesure, dans lesquelles le compilateur a pu inliner certaines fonctions testées (en particulier les fonctions isolées de §7.5). Ce surcoût n'est pas attribuable aux noyaux optimisés.
+
+### 11.3 Limites de ce profil
+
+- **Les parts ne sont pas des coûts par appel.** nanobench donne à chaque ligne de mesure une durée comparable (environ 0,2 à 0,8 s) : la part d'une fonction dans le profil dépend donc **autant du nombre de lignes de benchmark qui l'appellent** que de son coût propre. Par exemple, `aos_to_soa` est appelée par plusieurs lignes (conversion, total de `dot` avec deux appels, total de `normalize`, total de `transform`). Les comparaisons de coût par élément se lisent dans les tableaux du §7, pas dans les pourcentages du profil.
+- **Profil de l'exécution complète**, et non d'un seul traitement : la vue ligne par ligne d'une fonction (par exemple `normalize_soa_sse`, pour localiser les `sqrtps` et `divps`) n'a pas été faite. **À COMPLÉTER (facultatif)**.
+- **Profil par échantillonnage** : il ne distingue pas la cause microarchitecturale (latence mémoire, débit des instructions) ; les explications du §10 restent des hypothèses cohérentes avec les mesures.
+- `dot_ref` et `dot_ref_novec` ne peuvent pas être distinguées dans le profil, précisément parce qu'elles ont été fusionnées.
 
 ---
 
