@@ -460,6 +460,15 @@ J'ai utilisé **Claude (Anthropic)** comme assistant pour :
 
 Toutes les **mesures proviennent de mes exécutions** sur ma machine ; aucun chiffre de performance n'a été estimé par l'IA.
 
-> **À COMPLÉTER** : ce que j'ai moi-même relu, compris, testé et modifié dans le code fourni par l'IA, et les points où j'ai corrigé ou rejeté ses propositions.
->
-> Je dois pouvoir expliquer chaque ligne de `dot_sse` et de `dot_batch_asm` (transposition, restes, alignement) et modifier un extrait pendant la revue de code.
+- **Point de départ** : ma bibliothèque `Vector3` / `Mat4x4` (versions scalaire et SIMD) existait avant ce module. Les fichiers `BatchOps` (versions AoS, référence et SSE) avaient été produits lors d'une conversation précédente avec Claude ; j'ai ensuite poursuivi le travail avec lui.
+- **Exécution et mesures** : j'ai compilé et exécuté tout le projet en Release x64 sur ma machine, lancé le benchmark complet à deux reprises, et rapporté chaque sortie. Mes retours ont conduit à des corrections : affichage des textes en ASCII (accents illisibles dans la console), `-` à la place d'un ratio absurde sur les lignes de conversion, épinglage du thread sur un P-core (bruit à grande taille), et la section de reproductibilité (§7.6).
+- **Collecte des preuves** : rapport `/Qvec-report:2` sur deux postes (outils MSVC 14.36 puis 14.44), désassemblage de `dot_ref` et de `dot_sse` copié depuis le débogueur, options du compilateur et de l'éditeur de liens recopiées depuis Visual Studio, profil CPU (outil « Utilisation de l'UC », après un premier essai avec l'outil GPU, écarté car sans rapport).
+- **Organisation** : j'ai demandé de simplifier la structure des fichiers (fusion des fichiers d'extension dans `BatchOps` et dans `main.cpp`).
+- **Répartition du travail** : les tests unitaires ont été réalisés par mon binôme (§5.6).
+
+### Points où les propositions de l'IA ont été corrigées en cours de travail
+
+- Pour `dot_ref`, l'IA avait affirmé que le registre `r10` valait « b − a » **sans avoir vu le début de la fonction**. Après lecture du début de `dot_sse` (`sub r10, rdx`, donc `r10 = a − b`), l'annotation de `dot_ref` a été reformulée de façon neutre (§9.1).
+- Le premier rapport `/Qvec-report:2` provenait d'une autre version du compilateur que les mesures (14.36 contre 14.44). Il a été relancé sur la machine des mesures : les codes sont identiques.
+- Les premières conclusions sur les grands lots reposaient sur une seule exécution ; une deuxième exécution a montré une forte variabilité à 1 M éléments (§7.6), et les affirmations ont été remplacées par des intervalles.
+- L'hypothèse initiale de la fusion `dot_ref` / `dot_ref_novec` par l'éditeur de liens, d'abord non vérifiée, a été confirmée par le profil CPU (§11.2).
