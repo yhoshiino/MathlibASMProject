@@ -144,7 +144,7 @@ Les tolérances sont **relatives à la somme des termes en valeur absolue**, pas
 | Configuration | Release x64, **sans débogueur** (Ctrl+F5) |
 | Jeu d'instructions | SSE2 (défaut x64), intrinsics SSE/SSE2 uniquement |
 | Flottants | `/fp:precise` |
-| Options de compilation | **À COMPLÉTER** : copier la ligne de commande depuis *Propriétés > C/C++ > Ligne de commande* (`/O2`, `/GL`, etc.). Le journal de compilation indique que l'optimisation du programme entier (`/GL`) semble activée : à confirmer. |
+| Options de compilation | `/Qvec-report:2` |
 
 **Protocole** (nanobench)
 
