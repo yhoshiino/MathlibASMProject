@@ -397,8 +397,6 @@ Chaque conversion coûte 0,28–0,29 ns/élément à n = 16, 0,49–0,51 à n = 
 
 ## 11. Profilage CPU
 
-## 11. Profilage CPU
-
 **Outil** : Profileur de performances de Visual Studio, outil « Utilisation de l'UC » (échantillonnage), Release x64, sans le débogueur. **Périmètre** : une exécution complète du benchmark (les trois traitements, toutes les versions, les trois tailles) : 22 019 ms de temps CPU au total.
 
 ### 11.1 Fonctions les plus coûteuses (temps UC exclusif, c'est-à-dire sans les fonctions appelées)
