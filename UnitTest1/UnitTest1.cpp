@@ -1,292 +1,360 @@
+// ============================================================================
+// Vector3SIMDTests.cpp
+//
+// FICHIER TESTÉ : MathLibrary/Vector3SIMD.h   (classe math::simd::Vector3)
+//
+// Dans l'Explorateur de tests de Visual Studio, tous les tests de ce fichier sont
+// regroupés sous la classe "Vector3SIMD_Tests". Le début du nom d'un test indique
+// la fonction testée :
+//
+//   Constructors_*   ->  Vector3(), Vector3(x, y, z), Vector3(__m128)
+//   Layout_*         ->  taille 16 octets, alignement 16, union reg / (x, y, z, w)
+//   Dot_*            ->  Vector3::dot
+//   Magnitude_*      ->  Vector3::magnitude
+//   Normalized_*     ->  Vector3::normalized
+//   Detail_*         ->  detail::dot_xyz et detail::mask_xyz (fonctions internes)
+//   Constant_*       ->  kNormalizeEpsSq
+//
+// Les tests de Mat4x4f sont dans Mat4x4SIMDTests.cpp.
+// Les traitements par lots (BatchOps) ne sont PAS testés ici.
+// ============================================================================
 #include "pch.h"
 #include "CppUnitTest.h"
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <immintrin.h>
-#include "../MathLibrary/Matrix4x4SIMD.h" // Vérifiez le chemin vers votre fichier Mat4x4f.h
+#include <limits>
+#include <vector>
+#include <emmintrin.h>
+#include "../MathLibrary/Vector3SIMD.h" // Vérifie le chemin vers Vector3SIMD.h
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-using namespace math;
+using namespace math::simd;
 
 namespace
 {
-	using Mat = Mat4x4f;
-	using V3 = std::array<float, 3>;
-	using V4 = std::array<float, 4>;
+	// Tolérance mixte (cahier des charges : absolue + relative) :
+	//   |attendu - obtenu| <= absTol + relTol * |attendu|
+	// - absTol = 1e-6 : valeurs proches de 0 (l'epsilon du float vaut 1,2e-7 : on laisse quelques opérations)
+	// - relTol = 1e-5 : grandes valeurs (environ 80 fois l'epsilon, assez pour sqrt + division)
+	constexpr float ABS_TOL = 1e-6f;
+	constexpr float REL_TOL = 1e-5f;
 
-	constexpr float EPS = 1e-4f;
-	constexpr float PI = 3.14159265358979f;
-
-	// Comparaison de deux tableaux V3
-	void AssertArrayNear(const V3& expected, const V3& actual, float eps = EPS)
+	float Tol(float expected)
 	{
-		for (size_t i = 0; i < 3; ++i)
-		{
-			std::wstring msg = L"index " + std::to_wstring(i);
-			Assert::AreEqual(expected[i], actual[i], eps, msg.c_str());
-		}
+		return ABS_TOL + REL_TOL * std::abs(expected);
 	}
 
-	// Comparaison de deux tableaux V4
-	void AssertArrayNear(const V4& expected, const V4& actual, float eps = EPS)
+	void AssertNear(float expected, float actual, const wchar_t* msg = nullptr)
 	{
-		for (size_t i = 0; i < 4; ++i)
-		{
-			std::wstring msg = L"index " + std::to_wstring(i);
-			Assert::AreEqual(expected[i], actual[i], eps, msg.c_str());
-		}
+		Assert::AreEqual(expected, actual, Tol(expected), msg);
 	}
 
-	// Comparaison de deux matrices Mat4x4f
-	void AssertMatNear(const Mat& expected, const Mat& actual, float eps = EPS)
+	// Vecteur dont on choisit aussi la lane w (le constructeur (x, y, z) la met toujours à 0)
+	Vector3 WithW(float x, float y, float z, float w)
 	{
-		for (int row = 0; row < 4; ++row)
-		{
-			for (int col = 0; col < 4; ++col)
-			{
-				std::wstring msg = L"at(" + std::to_wstring(row) + L", " + std::to_wstring(col) + L")";
-				Assert::AreEqual(expected.at(row, col), actual.at(row, col), eps, msg.c_str());
-			}
-		}
+		return Vector3(_mm_setr_ps(x, y, z, w));
 	}
 
-	// Matrice remplie séquentiellement selon la disposition Column-Major
-	Mat MakeSequential(float offset)
+	// Longueur calculée en double précision : référence indépendante du code testé
+	double LengthD(float x, float y, float z)
 	{
-		Mat m;
-		for (int row = 0; row < 4; ++row)
-		{
-			for (int col = 0; col < 4; ++col)
-			{
-				// col * 4 + row garantit que at(1, 2) aura bien la valeur 9 + offset
-				m.at(row, col) = static_cast<float>(col * 4 + row) + offset;
-			}
-		}
-		return m;
-	}
-
-	// Multiplication scalaire de référence (triple boucle)
-	Mat ReferenceMultiply(const Mat& a, const Mat& b)
-	{
-		Mat r = Mat::zero();
-		for (int row = 0; row < 4; ++row)
-		{
-			for (int col = 0; col < 4; ++col)
-			{
-				float sum = 0.0f;
-				for (int k = 0; k < 4; ++k)
-					sum += a.at(row, k) * b.at(k, col);
-				r.at(row, col) = sum;
-			}
-		}
-		return r;
+		return std::sqrt(static_cast<double>(x) * x + static_cast<double>(y) * y + static_cast<double>(z) * z);
 	}
 }
 
-namespace Mat4x4fTests
+namespace Vector3SIMDTests
 {
-	TEST_CLASS(Mat4x4fSIMDTests)
+	TEST_CLASS(Vector3SIMD_Tests)
 	{
 	public:
 
-		// --- 1. CONSTRUCTEURS, ACCÈS ET ALIGNEMENT SIMD ---
-		TEST_METHOD(ConstructorsAccessAndAlignment)
+		// ====================================================================
+		// Constructors_*  -> Vector3(), Vector3(x, y, z), Vector3(__m128)
+		// ====================================================================
+
+		TEST_METHOD(Constructors_Default_AllLanesZero)
 		{
-			// Constructeur par défaut = identité
-			Mat m;
-			Assert::IsTrue(m.isIdentity());
-			AssertMatNear(m, Mat::identity());
-
-			// Matrice Nulle
-			Mat z = Mat::zero();
-			for (int r = 0; r < 4; ++r)
-				for (int c = 0; c < 4; ++c)
-					Assert::AreEqual(0.0f, z.at(r, c));
-
-			// Alignement mémoire obligatoire pour SIMD (16 octets)
-			Assert::AreEqual(static_cast<std::uintptr_t>(0), reinterpret_cast<std::uintptr_t>(&m) % 16);
-			Assert::AreEqual(static_cast<std::uintptr_t>(0), reinterpret_cast<std::uintptr_t>(m.data) % 16);
-			Assert::AreEqual(static_cast<size_t>(16 * sizeof(float)), sizeof(Mat));
-
-			// Disposition column-major : at(row, col) == data[col * 4 + row]
-			Mat seq = MakeSequential(0.0f);
-			Assert::AreEqual(9.0f, seq.at(1, 2));
-			Assert::AreEqual(9.0f, seq.data[2 * 4 + 1]);
+			Vector3 v;
+			Assert::AreEqual(0.0f, v.x);
+			Assert::AreEqual(0.0f, v.y);
+			Assert::AreEqual(0.0f, v.z);
+			Assert::AreEqual(0.0f, v.w);
 		}
 
-		// --- 2. ACCÈS PAR REGISTRES __m128 ET COLONNES/LIGNES ---
-		TEST_METHOD(ColumnAndRowAccess)
+		TEST_METHOD(Constructors_XYZ_SetsComponentsAndPaddingToZero)
 		{
-			Mat m = Mat::identity();
-
-			// setColumn
-			V4 newCol2 = { 1.0f, 2.0f, 3.0f, 4.0f };
-			m.setColumn(2, newCol2);
-			AssertArrayNear(newCol2, m.getColumn(2));
-
-			// Validation du registre __m128 sous-jacent
-			alignas(16) float store[4];
-			_mm_store_ps(store, m.col[2]);
-			Assert::AreEqual(1.0f, store[0]);
-			Assert::AreEqual(2.0f, store[1]);
-			Assert::AreEqual(3.0f, store[2]);
-			Assert::AreEqual(4.0f, store[3]);
-
-			// setRow
-			V4 newRow1 = { 5.0f, 6.0f, 7.0f, 8.0f };
-			m.setRow(1, newRow1);
-			AssertArrayNear(newRow1, m.getRow(1));
+			Vector3 v(1.5f, -2.5f, 3.5f);
+			Assert::AreEqual(1.5f, v.x);
+			Assert::AreEqual(-2.5f, v.y);
+			Assert::AreEqual(3.5f, v.z);
+			Assert::AreEqual(0.0f, v.w); // w est le padding : toujours 0 avec ce constructeur
 		}
 
-		// --- 3. TRANSFORMATIONS GEOMETRIQUES (TRS) ---
-		TEST_METHOD(TranslationAndScaling)
+		TEST_METHOD(Constructors_FromRegister_KeepsAllFourLanes)
 		{
-			// Translation
-			Mat t = Mat::translate(10.0f, -20.0f, 30.0f);
-			AssertArrayNear(V3{ 10.0f, -20.0f, 30.0f }, t.getPosition());
-
-			// Scale
-			Mat s = Mat::scale(2.0f, 3.0f, 4.0f);
-			AssertArrayNear(V3{ 2.0f, 3.0f, 4.0f }, s.lossyScale());
-
-			// Composition TRS
-			Mat trsMat = Mat::trs(10.0f, -20.0f, 30.0f, 0.0f, 0.0f, 0.0f, 2.0f, 3.0f, 4.0f);
-			AssertMatNear(t * s, trsMat);
-			Assert::IsTrue(trsMat.validTRS());
+			// Ce constructeur copie le registre tel quel : w n'est PAS forcé à 0
+			Vector3 v(_mm_setr_ps(1.0f, 2.0f, 3.0f, 5.0f));
+			Assert::AreEqual(1.0f, v.x);
+			Assert::AreEqual(2.0f, v.y);
+			Assert::AreEqual(3.0f, v.z);
+			Assert::AreEqual(5.0f, v.w);
 		}
 
-		TEST_METHOD(Rotations)
+		// ====================================================================
+		// Layout_*  -> taille, alignement, union reg / x y z w
+		// ====================================================================
+
+		TEST_METHOD(Layout_SizeAndAlignment_16Bytes)
 		{
-			float angle = PI / 2.0f; // 90°
+			Assert::AreEqual(static_cast<size_t>(16), sizeof(Vector3));
+			Assert::AreEqual(static_cast<size_t>(16), alignof(Vector3));
 
-			// Rotation X : Y -> Z
-			Mat rx = Mat::rotationX(angle);
-			AssertArrayNear(V3{ 0.0f, 0.0f, 1.0f }, rx.multiplyVector(V3{ 0.0f, 1.0f, 0.0f }));
-
-			// Rotation Y : Z -> X
-			Mat ry = Mat::rotationY(angle);
-			AssertArrayNear(V3{ 1.0f, 0.0f, 0.0f }, ry.multiplyVector(V3{ 0.0f, 0.0f, 1.0f }));
-
-			// Rotation Z : X -> Y
-			Mat rz = Mat::rotationZ(angle);
-			AssertArrayNear(V3{ 0.0f, 1.0f, 0.0f }, rz.multiplyVector(V3{ 1.0f, 0.0f, 0.0f }));
+			Vector3 v;
+			Assert::AreEqual(static_cast<std::uintptr_t>(0), reinterpret_cast<std::uintptr_t>(&v) % 16);
 		}
 
-		// --- 4. MULTIPLICATIONS ET SIMD ---
-		TEST_METHOD(MatrixMultiplicationSIMD)
+		TEST_METHOD(Layout_ArrayAndStdVector_AreAligned)
 		{
-			Mat a = MakeSequential(1.0f);
-			Mat b = MakeSequential(-4.0f);
+			// BatchOps suppose que ses tableaux de Vector3 sont alignés sur 16 octets
+			Vector3 arr[4];
+			for (int i = 0; i < 4; ++i)
+				Assert::AreEqual(static_cast<std::uintptr_t>(0), reinterpret_cast<std::uintptr_t>(&arr[i]) % 16);
 
-			// Comparaison entre l'opérateur * (SIMD) et le calcul scalaire de référence
-			AssertMatNear(ReferenceMultiply(a, b), a * b);
-
-			// Propriété de l'élément neutre
-			AssertMatNear(a, a * Mat::identity());
-			AssertMatNear(a, Mat::identity() * a);
+			std::vector<Vector3> vec(5);
+			Assert::AreEqual(static_cast<std::uintptr_t>(0), reinterpret_cast<std::uintptr_t>(vec.data()) % 16);
+			Assert::AreEqual(static_cast<std::uintptr_t>(0), reinterpret_cast<std::uintptr_t>(&vec[3]) % 16);
 		}
 
-		TEST_METHOD(VectorAndPointMultiplication)
+		TEST_METHOD(Layout_RegisterAndComponents_ShareTheSameMemory)
 		{
-			Mat t = Mat::translate(5.0f, 10.0f, 15.0f);
+			Vector3 v(1.0f, 2.0f, 3.0f);
+			alignas(16) float out[4];
 
-			// Vecteur directionnel (W = 0, insensible à la translation)
-			V3 dir = { 1.0f, 2.0f, 3.0f };
-			AssertArrayNear(dir, t.multiplyVector(dir));
+			// reg contient (x, y, z, w) dans cet ordre
+			_mm_store_ps(out, v.reg);
+			Assert::AreEqual(1.0f, out[0]);
+			Assert::AreEqual(2.0f, out[1]);
+			Assert::AreEqual(3.0f, out[2]);
+			Assert::AreEqual(0.0f, out[3]);
 
-			// Point 3D (homogène W = 1, subit la translation)
-			AssertArrayNear(V3{ 6.0f, 12.0f, 18.0f }, t.multiplyPoint3x4(dir));
-
-			// Point 4D explicite
-			V4 pt4 = { 1.0f, 2.0f, 3.0f, 1.0f };
-			AssertArrayNear(V4{ 6.0f, 12.0f, 18.0f, 1.0f }, t.multiplyPoint(pt4));
-
-			// Multiplier directement un registre __m128
-			alignas(16) float store[4];
-			_mm_store_ps(store, t.multiply(_mm_setr_ps(1.0f, 2.0f, 3.0f, 1.0f)));
-			Assert::AreEqual(6.0f, store[0], EPS);
-			Assert::AreEqual(12.0f, store[1], EPS);
-			Assert::AreEqual(18.0f, store[2], EPS);
-			Assert::AreEqual(1.0f, store[3], EPS);
+			// Modifier un composant modifie le registre
+			v.y = 9.0f;
+			_mm_store_ps(out, v.reg);
+			Assert::AreEqual(9.0f, out[1]);
 		}
 
-		// --- 5. OPERATEURS ALGEBRIQUES (TRANSPOSITION, DETERMINANT, INVERSION) ---
-		TEST_METHOD(Transpose)
-		{
-			Mat m = Mat::translate(1.0f, 2.0f, 3.0f);
-			Mat transposed = m.transpose();
+		// ====================================================================
+		// Dot_*  -> Vector3::dot
+		// ====================================================================
 
-			Assert::AreEqual(1.0f, transposed.at(3, 0));
-			Assert::AreEqual(2.0f, transposed.at(3, 1));
-			Assert::AreEqual(3.0f, transposed.at(3, 2));
+		TEST_METHOD(Dot_KnownValues)
+		{
+			// Valeurs calculées à la main
+			Assert::AreEqual(32.0f, Vector3(1, 2, 3).dot(Vector3(4, 5, 6)), 1e-6f); // 4 + 10 + 18
+			Assert::AreEqual(1.0f, Vector3(1, 0, 0).dot(Vector3(1, 0, 0)), 1e-6f);
+			Assert::AreEqual(0.0f, Vector3(1, 0, 0).dot(Vector3(0, 1, 0)), 1e-6f);  // perpendiculaires
+			Assert::AreEqual(-1.0f, Vector3(1, 0, 0).dot(Vector3(-1, 0, 0)), 1e-6f); // opposés
+			Assert::AreEqual(0.0f, Vector3(2, 2, 2).dot(Vector3(1, -1, 0)), 1e-6f);
+			Assert::AreEqual(0.0f, Vector3(0, 0, 0).dot(Vector3(7, 8, 9)), 1e-6f);   // vecteur nul
 		}
 
-		TEST_METHOD(Determinant)
+		TEST_METHOD(Dot_IsCommutative)
 		{
-			Assert::AreEqual(1.0f, Mat::identity().determinant(), EPS);
-
-			Mat s = Mat::scale(2.0f, 3.0f, 4.0f);
-			Assert::AreEqual(24.0f, s.determinant(), EPS);
+			Vector3 a(1.5f, -2.0f, 3.25f);
+			Vector3 b(-4.0f, 0.5f, 2.0f);
+			Assert::AreEqual(a.dot(b), b.dot(a), 1e-6f);
 		}
 
-		TEST_METHOD(Inverse)
+		TEST_METHOD(Dot_ScalingAVectorScalesTheResult)
 		{
-			Mat m = Mat::trs(2.0f, -1.0f, 0.5f, 0.1f, 0.2f, 0.3f, 1.5f, 0.8f, 2.0f);
-			Mat inv = m.inverse();
-
-			// M * M^-1 == Identité
-			AssertMatNear(Mat::identity(), m * inv);
-
-			// Matrice non inversible -> Matrice nulle
-			Mat zeroMat = Mat::zero();
-			AssertMatNear(zeroMat, zeroMat.inverse());
+			Vector3 a(1, 2, 3);
+			Vector3 b(4, 5, 6);
+			Vector3 a3(3, 6, 9); // a * 3
+			AssertNear(3.0f * a.dot(b), a3.dot(b));
 		}
 
-		// --- 6. PROJECTIONS ET CAMERA ---
-		TEST_METHOD(LookAt)
+		TEST_METHOD(Dot_IgnoresLaneW)
 		{
-			V3 eye = { 0.0f, 0.0f, 5.0f };
-			V3 center = { 0.0f, 0.0f, 0.0f };
-			V3 up = { 0.0f, 1.0f, 0.0f };
-
-			Mat view = Mat::lookAt(eye, center, up);
-
-			// La position de l'œil dans l'espace vue doit devenir l'origine (0,0,0)
-			AssertArrayNear(V3{ 0.0f, 0.0f, 0.0f }, view.multiplyPoint3x4(eye));
+			// Le padding w ne doit jamais influencer le résultat
+			Vector3 a = WithW(1, 2, 3, 999.0f);
+			Vector3 b = WithW(4, 5, 6, -777.0f);
+			Assert::AreEqual(32.0f, a.dot(b), 1e-6f);
 		}
 
-		TEST_METHOD(Projections)
+		TEST_METHOD(Dot_MatchesScalarFormula)
 		{
-			// Perspective
-			Mat p = Mat::perspective(PI / 3.0f, 16.0f / 9.0f, 0.1f, 100.0f);
-			Assert::AreEqual(-1.0f, p.at(3, 2));
-
-			// Orthographique
-			Mat o = Mat::ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.1f, 100.0f);
-			Assert::AreEqual(1.0f, o.at(3, 3));
-
-			// Frustum
-			Mat f = Mat::frustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.1f, 100.0f);
-			Assert::AreEqual(-1.0f, f.at(3, 2));
+			// Même ordre d'addition que la formule scalaire : (x*x' + y*y') + z*z'
+			const std::array<std::array<float, 3>, 5> as = { {
+				{ 1.0f, 2.0f, 3.0f }, { -5.0f, 0.5f, 12.0f }, { 100.0f, -200.0f, 300.0f },
+				{ 1e-3f, 2e-3f, -3e-3f }, { 0.1f, 0.2f, 0.3f } } };
+			const std::array<std::array<float, 3>, 5> bs = { {
+				{ 4.0f, 5.0f, 6.0f }, { 2.0f, -7.0f, 0.25f }, { -3.0f, 1.0f, 0.5f },
+				{ 5e-3f, 1e-3f, 1e-3f }, { 0.3f, 0.2f, 0.1f } } };
+			for (size_t i = 0; i < as.size(); ++i)
+			{
+				const float expected = as[i][0] * bs[i][0] + as[i][1] * bs[i][1] + as[i][2] * bs[i][2];
+				const float actual = Vector3(as[i][0], as[i][1], as[i][2]).dot(Vector3(bs[i][0], bs[i][1], bs[i][2]));
+				AssertNear(expected, actual);
+			}
 		}
 
-		// --- 7. CONVERSION EN QUATERNION ---
-		TEST_METHOD(RotationToQuaternion)
+		// ====================================================================
+		// Magnitude_*  -> Vector3::magnitude
+		// ====================================================================
+
+		TEST_METHOD(Magnitude_KnownValues)
 		{
-			float angle = PI / 2.0f; // 90° autour de Z
-			Mat rotZ = Mat::rotationZ(angle);
+			Assert::AreEqual(5.0f, Vector3(3, 4, 0).magnitude(), 1e-6f);
+			Assert::AreEqual(3.0f, Vector3(1, 2, 2).magnitude(), 1e-6f);
+			Assert::AreEqual(7.0f, Vector3(0, 0, -7).magnitude(), 1e-6f);
+			Assert::AreEqual(0.0f, Vector3(0, 0, 0).magnitude(), 1e-6f);
+			Assert::AreEqual(std::sqrt(3.0f), Vector3(1, 1, 1).magnitude(), 1e-6f);
+		}
 
-			Mat4x4f::Quaternion q = rotZ.rotation();
+		TEST_METHOD(Magnitude_IgnoresLaneW)
+		{
+			Assert::AreEqual(5.0f, WithW(3, 4, 0, 999.0f).magnitude(), 1e-6f);
+		}
 
-			// 90° autour de Z -> w = cos(45°) = 0.7071, z = sin(45°) = 0.7071
-			Assert::AreEqual(std::cos(angle / 2.0f), q.w, EPS);
-			Assert::AreEqual(0.0f, q.x, EPS);
-			Assert::AreEqual(0.0f, q.y, EPS);
-			Assert::AreEqual(std::sin(angle / 2.0f), q.z, EPS);
+		TEST_METHOD(Magnitude_SquaredEqualsDotWithItself)
+		{
+			Vector3 v(1.5f, -2.5f, 4.0f);
+			const float m = v.magnitude();
+			AssertNear(v.dot(v), m * m);
+		}
+
+		TEST_METHOD(Magnitude_MatchesDoublePrecisionReference)
+		{
+			const std::array<std::array<float, 3>, 4> vs = { {
+				{ -5.0f, 0.5f, 12.0f }, { 100.0f, -200.0f, 300.0f }, { 1e-3f, 2e-3f, -3e-3f }, { 0.1f, 0.2f, 0.3f } } };
+			for (const auto& v : vs)
+				AssertNear(static_cast<float>(LengthD(v[0], v[1], v[2])), Vector3(v[0], v[1], v[2]).magnitude());
+		}
+
+		// ====================================================================
+		// Normalized_*  -> Vector3::normalized
+		// ====================================================================
+
+		TEST_METHOD(Normalized_KnownValues)
+		{
+			Vector3 a = Vector3(3, 4, 0).normalized();
+			AssertNear(0.6f, a.x);
+			AssertNear(0.8f, a.y);
+			Assert::AreEqual(0.0f, a.z, 1e-6f);
+
+			Vector3 b = Vector3(0, 0, -2).normalized();
+			Assert::AreEqual(0.0f, b.x, 1e-6f);
+			Assert::AreEqual(0.0f, b.y, 1e-6f);
+			AssertNear(-1.0f, b.z);
+
+			const float inv = 1.0f / std::sqrt(3.0f);
+			Vector3 c = Vector3(1, 1, 1).normalized();
+			AssertNear(inv, c.x);
+			AssertNear(inv, c.y);
+			AssertNear(inv, c.z);
+		}
+
+		TEST_METHOD(Normalized_HasUnitLengthAndKeepsDirection)
+		{
+			// Référence indépendante : composante / longueur calculée en double
+			const std::array<std::array<float, 3>, 6> vs = { {
+				{ 3.0f, 4.0f, 0.0f }, { 1.0f, 2.0f, 2.0f }, { -5.0f, 0.5f, 12.0f },
+				{ 100.0f, -200.0f, 300.0f }, { 1e-3f, 2e-3f, -3e-3f }, { 0.0f, 0.0f, 9.0f } } };
+			for (const auto& v : vs)
+			{
+				const double len = LengthD(v[0], v[1], v[2]);
+				Vector3 n = Vector3(v[0], v[1], v[2]).normalized();
+				AssertNear(static_cast<float>(v[0] / len), n.x);
+				AssertNear(static_cast<float>(v[1] / len), n.y);
+				AssertNear(static_cast<float>(v[2] / len), n.z);
+				AssertNear(1.0f, n.magnitude());
+			}
+		}
+
+		TEST_METHOD(Normalized_ResultLaneWIsZero)
+		{
+			// Même si w contient n'importe quoi en entrée, le résultat a w = 0
+			Vector3 n = WithW(3, 4, 0, 999.0f).normalized();
+			Assert::AreEqual(0.0f, n.w);
+			AssertNear(0.6f, n.x);
+			AssertNear(0.8f, n.y);
+		}
+
+		TEST_METHOD(Normalized_ZeroVector_ReturnsZeroNotNaN)
+		{
+			// Convention documentée : vecteur nul -> (0, 0, 0), jamais de NaN
+			Vector3 n = Vector3(0, 0, 0).normalized();
+			Assert::AreEqual(0.0f, n.x);
+			Assert::AreEqual(0.0f, n.y);
+			Assert::AreEqual(0.0f, n.z);
+			Assert::AreEqual(0.0f, n.w);
+			Assert::IsFalse(std::isnan(n.x) || std::isnan(n.y) || std::isnan(n.z));
+		}
+
+		TEST_METHOD(Normalized_BelowThreshold_ReturnsZero)
+		{
+			// |v|^2 = 1e-14 <= kNormalizeEpsSq (1e-12) : considéré comme nul
+			Vector3 tiny = Vector3(1e-7f, 0.0f, 0.0f).normalized();
+			Assert::AreEqual(0.0f, tiny.x);
+			Assert::AreEqual(0.0f, tiny.y);
+			Assert::AreEqual(0.0f, tiny.z);
+
+			Vector3 tiny3 = Vector3(1e-7f, -2e-7f, 1e-7f).normalized();
+			Assert::AreEqual(0.0f, tiny3.x);
+			Assert::AreEqual(0.0f, tiny3.y);
+			Assert::AreEqual(0.0f, tiny3.z);
+		}
+
+		TEST_METHOD(Normalized_SmallButAboveThreshold_IsNormalized)
+		{
+			// |v|^2 = 1e-6 > 1e-12 : petit mais valide
+			Vector3 n = Vector3(1e-3f, 0.0f, 0.0f).normalized();
+			AssertNear(1.0f, n.x);
+			Assert::AreEqual(0.0f, n.y, 1e-6f);
+			Assert::AreEqual(0.0f, n.z, 1e-6f);
+		}
+
+		TEST_METHOD(Normalized_NaNInput_ReturnsZero)
+		{
+			// La comparaison "len2 > seuil" est fausse pour NaN : le résultat est forcé à 0
+			const float nan = std::numeric_limits<float>::quiet_NaN();
+			Vector3 n = Vector3(nan, 1.0f, 1.0f).normalized();
+			Assert::AreEqual(0.0f, n.x);
+			Assert::AreEqual(0.0f, n.y);
+			Assert::AreEqual(0.0f, n.z);
+		}
+
+		// ====================================================================
+		// Detail_*  -> detail::dot_xyz, detail::mask_xyz
+		// ====================================================================
+
+		TEST_METHOD(Detail_DotXYZ_BroadcastsResultInAllLanes)
+		{
+			alignas(16) float out[4];
+			_mm_store_ps(out, detail::dot_xyz(_mm_setr_ps(1, 2, 3, 999), _mm_setr_ps(4, 5, 6, 999)));
+			for (int i = 0; i < 4; ++i)
+				Assert::AreEqual(32.0f, out[i], 1e-6f); // 4 + 10 + 18, w ignoré, même valeur dans les 4 lanes
+		}
+
+		TEST_METHOD(Detail_MaskXYZ_KeepsXYZAndClearsW)
+		{
+			alignas(16) std::uint32_t bits[4];
+			_mm_store_si128(reinterpret_cast<__m128i*>(bits), _mm_castps_si128(detail::mask_xyz()));
+			Assert::AreEqual(0xFFFFFFFFu, bits[0]);
+			Assert::AreEqual(0xFFFFFFFFu, bits[1]);
+			Assert::AreEqual(0xFFFFFFFFu, bits[2]);
+			Assert::AreEqual(0u, bits[3]);
+		}
+
+		// ====================================================================
+		// Constant_*  -> kNormalizeEpsSq
+		// ====================================================================
+
+		TEST_METHOD(Constant_NormalizeEpsSq_IsOneEMinus12)
+		{
+			// Seuil documenté : |v| < 1e-6, soit |v|^2 <= 1e-12
+			Assert::AreEqual(1e-12f, kNormalizeEpsSq);
 		}
 	};
 }
