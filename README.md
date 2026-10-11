@@ -144,7 +144,8 @@ Les tolérances sont **relatives à la somme des termes en valeur absolue**, pas
 | Configuration | Release x64, **sans débogueur** (Ctrl+F5) |
 | Jeu d'instructions | SSE2 (défaut x64), intrinsics SSE/SSE2 uniquement |
 | Flottants | `/fp:precise` |
-| Options de compilation | `/Qvec-report:2` |
+| Options de compilation | `/O2 /Oi /GL /Gy /fp:precise /std:c++20 /MD /GS /sdl /EHsc /permissive- /Zc:inline /Zc:wchar_t /Zc:forScope /W3 /Zi /D NDEBUG /D _CONSOLE /D _UNICODE /D UNICODE (ligne complète recopiée depuis Propriétés > C/C++ > Ligne de commande). Aucune option /arch : jeu d'instructions SSE2 par défaut en x64. /GL est actif (optimisation du programme entier, génération de code à l'édition de liens). /Qvec-report:2 n'a été ajouté que pour l'analyse de la vectorisation (§8) et ne modifie pas le code généré.` |
+| Options de l'éditeur de lien | `/LTCG:incremental /OPT:REF /OPT:ICF /DEBUG /MACHINE:X64 /SUBSYSTEM:CONSOLE /DYNAMICBASE /NXCOMPAT. /OPT:ICF fusionne les fonctions identiques (voir §8) ; /DEBUG produit seulement le fichier de symboles et ne modifie pas le code généré.` |
 
 **Protocole** (nanobench)
 
