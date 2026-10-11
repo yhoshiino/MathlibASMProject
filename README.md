@@ -421,7 +421,7 @@ J'ai utilisé **Claude (Anthropic)** comme assistant pour :
 - écrire l'application de benchmark (`main.cpp`) et les vérifications automatiques (valeurs connues, référence en `double`, égalité bit à bit, tailles limites) ;
 - dériver les bornes d'erreur des tolérances ;
 - annoter les extraits de désassemblage et lire les codes du rapport `/Qvec-report:2` ;
-- rédiger la structure et le texte de ce rapport.
+- rédiger la structure de ce rapport.
 
 Toutes les **mesures proviennent de mes exécutions** sur ma machine ; aucun chiffre de performance n'a été estimé par l'IA.
 
