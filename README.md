@@ -447,17 +447,7 @@ Chaque conversion coûte 0,28–0,29 ns/élément à n = 16, 0,49–0,51 à n = 
 
 ---
 
-## 12. Travail non réalisé et limites
-
-- Profilage CPU et tests unitaires dans un projet séparé : **À COMPLÉTER** (sections 5.6 et 11).
-- Aucune extension facultative n'a été traitée (AVX, normalisation approchée, `operator*` par lots, AoSoA, alignement/padding).
-- Lectures hors bornes non vérifiées (AddressSanitizer non exécuté).
-- Pas de compteurs matériels : les explications microarchitecturales sont des hypothèses cohérentes avec les mesures, pas des preuves.
-- Mesures faites sur une seule machine ; non comparables à d'autres CPU sans relancer le benchmark.
-
----
-
-## 13. Usage de l'IA générative
+## 12. Usage de l'IA générative
 
 J'ai utilisé **Claude (Anthropic)** comme assistant pour :
 
